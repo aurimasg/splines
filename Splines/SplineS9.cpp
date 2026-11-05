@@ -102,7 +102,7 @@ static FloatPoint S9RotatePointAroundOrigin(const FloatPoint v,
 }
 
 
-static inline double S9InfiniteCurvaturePole(const double beta) noexcept
+static inline double S9PoleAxis(const double beta) noexcept
 {
     static constexpr const double K = 0.3;
 
@@ -118,18 +118,18 @@ static inline double S9InfiniteCurvaturePole(const double beta) noexcept
 /**
  * Returns the rotation range of a knot. Absolute angles between curvature
  * pole of the segment before it and the pole of the segment after it, see
- * S9InfiniteCurvaturePole.
+ * S9PoleAxis.
  */
 static AngleRange S9CalculateRotationRangeForSegmentPair(
     const double prevKnotAngle, const double nextKnotAngle,
     const double prevSegmentAngle, const double nextSegmentAngle)
 {
     // Rotation limit axis for beta angle of the previous segment.
-    const double betaLimit = S9BetaToAbsolute(S9InfiniteCurvaturePole(
+    const double betaLimit = S9BetaToAbsolute(S9PoleAxis(
         S9AbsoluteToAlpha(prevKnotAngle, prevSegmentAngle)), prevSegmentAngle);
 
     // Rotation limit axis for alpha angle of the next segment.
-    const double alphaLimit = S9AlphaToAbsolute(S9InfiniteCurvaturePole(
+    const double alphaLimit = S9AlphaToAbsolute(S9PoleAxis(
         S9AbsoluteToBeta(nextKnotAngle, nextSegmentAngle)), nextSegmentAngle);
 
     const double axis = (betaLimit + alphaLimit) / 2.0;
@@ -185,7 +185,7 @@ static inline void S9KeepShape(const S9Curve &shape,
 
 
 /**
- * Returns signed tangent length of one endpoint.
+ * Returns signed alignment of one endpoint.
  *
  * @param alpha Finite angle of this endpoint in radians. At the right end,
  * use the clockwise angle from the chord.
@@ -193,7 +193,7 @@ static inline void S9KeepShape(const S9Curve &shape,
  * @param beta Finite angle of the opposite endpoint in radians, in the same
  * convention.
  */
-static inline double S9TangentLength(const double alpha,
+static inline double S9EndAlignment(const double alpha,
     const double beta) noexcept
 {
     ASSERT(isfinite(alpha));
@@ -201,7 +201,7 @@ static inline double S9TangentLength(const double alpha,
 
     static constexpr const double T = 0.9;
 
-    const double axis = S9InfiniteCurvaturePole(beta);
+    const double axis = S9PoleAxis(beta);
     const double phase = alpha - axis;
 
     return tanh(T * cos(phase)) / tanh(T);
@@ -209,41 +209,41 @@ static inline double S9TangentLength(const double alpha,
 
 
 /**
- * Returns end weight of one signed tangent length.
+ * Returns end weight of one signed alignment.
  *
- * @param length Finite signed tangent length from minus one through one.
+ * @param alignment Finite signed alignment from minus one through one.
  */
-static inline double S9EndWeight(const double length) noexcept
+static inline double S9AlignmentWeight(const double alignment) noexcept
 {
-    ASSERT(isfinite(length));
-    ASSERT(fabs(length) <= 1.0);
+    ASSERT(isfinite(alignment));
+    ASSERT(fabs(alignment) <= 1.0);
 
-    return Max(pow(Abs(length), 2.8), 1.7e-10);
+    return Max(pow(Abs(alignment), 2.8), 1.7e-10);
 }
 
 
-static inline double S9RoundingLift(const double length) noexcept
+static inline double S9WeightEta(const double weight) noexcept
 {
-    ASSERT(isfinite(length));
-    ASSERT(fabs(length) <= 1.0);
+    ASSERT(isfinite(weight));
+    ASSERT(fabs(weight) <= 1.0);
 
-    return 2.4 * pow(cos((M_PI / 2.0) * length), 6.0);
+    return 2.4 * pow(cos((M_PI / 2.0) * weight), 6.0);
 }
 
 
-static inline S9CurveParameters S9Lengths(const double alpha,
+static inline S9CurveParameters S9ParametersFromAngles(const double alpha,
     const double beta) noexcept
 {
     ASSERT(isfinite(alpha));
     ASSERT(isfinite(beta));
 
-    const double startTangent = S9TangentLength(alpha, beta);
-    const double endTangent = S9TangentLength(beta, alpha);
-    const double startWeight = S9EndWeight(startTangent);
-    const double endWeight = S9EndWeight(endTangent);
+    const double startAlignment = S9EndAlignment(alpha, beta);
+    const double endAlignment = S9EndAlignment(beta, alpha);
+    const double startAlignmentWeight = S9AlignmentWeight(startAlignment);
+    const double endAlignmentWeight = S9AlignmentWeight(endAlignment);
 
     // One for two flat ends, near two when either end is a corner.
-    const double middle = 2.0 - startWeight * endWeight;
+    const double middle = 2.0 - startAlignmentWeight * endAlignmentWeight;
 
     ASSERT(middle >= 1.0);
     ASSERT(middle <= 2.0);
@@ -252,22 +252,22 @@ static inline S9CurveParameters S9Lengths(const double alpha,
 
     parameters.Alpha = alpha;
     parameters.Beta = beta;
-    parameters.StartLength = startWeight / middle;
-    parameters.EndLength = endWeight / middle;
-    parameters.StartRoundingLift = S9RoundingLift(parameters.StartLength);
-    parameters.EndRoundingLift = S9RoundingLift(parameters.EndLength);
+    parameters.StartWeight = startAlignmentWeight / middle;
+    parameters.EndWeight = endAlignmentWeight / middle;
+    parameters.StartEta = S9WeightEta(parameters.StartWeight);
+    parameters.EndEta = S9WeightEta(parameters.EndWeight);
 
-    ASSERT(parameters.StartLength > 0.0);
-    ASSERT(parameters.StartLength <= 1.0);
-    ASSERT(parameters.EndLength > 0.0);
-    ASSERT(parameters.EndLength <= 1.0);
+    ASSERT(parameters.StartWeight > 0.0);
+    ASSERT(parameters.StartWeight <= 1.0);
+    ASSERT(parameters.EndWeight > 0.0);
+    ASSERT(parameters.EndWeight <= 1.0);
 
-    if (startTangent < 0.0) {
-        parameters.StartLength = -parameters.StartLength;
+    if (startAlignment < 0.0) {
+        parameters.StartWeight = -parameters.StartWeight;
     }
 
-    if (endTangent < 0.0) {
-        parameters.EndLength = -parameters.EndLength;
+    if (endAlignment < 0.0) {
+        parameters.EndWeight = -parameters.EndWeight;
     }
 
     return parameters;
@@ -280,9 +280,9 @@ static inline bool S9TrySolveCurve(const double alpha, const double beta,
     ASSERT(isfinite(alpha));
     ASSERT(isfinite(beta));
 
-    const S9CurveParameters parameters = S9Lengths(alpha, beta);
+    const S9CurveParameters parameters = S9ParametersFromAngles(alpha, beta);
 
-    return curve.TrySolveWithLengths(parameters);
+    return curve.TrySolveWithWeights(parameters);
 }
 
 
@@ -293,9 +293,9 @@ static inline bool S9TrySolveCurveNear(const double alpha, const double beta,
     ASSERT(isfinite(beta));
     ASSERT(nearby.Length > 0.0);
 
-    const S9CurveParameters parameters = S9Lengths(alpha, beta);
+    const S9CurveParameters parameters = S9ParametersFromAngles(alpha, beta);
 
-    return curve.TrySolveWithLengthsNear(parameters, nearby);
+    return curve.TrySolveWithWeightsNear(parameters, nearby);
 }
 
 
@@ -331,7 +331,7 @@ static inline bool S9TryCalculateEndCurvatures(const double alpha,
  * Returns curvature delta at the center knot of two neighbouring segments.
  * Curvature at the start of the next segment minus curvature at the end of
  * the previous segment, each for its own chord length. The delta becomes very
- * large when a curvature length at the center knot goes to zero.
+ * large when a weight at the center knot goes to zero.
  *
  * The angles x, y and z are the absolute angles of the previous, center
  * and next knots, a0 and a1 those of the two segments, and h0 and h1 the
@@ -410,8 +410,8 @@ static double S9ClampKnotAngle(const double prevKnotAngle,
 
 /*
  * Distance, in radians, from an end of rotation range at which the solver
- * reads the sign of curvature delta. At the end itself curvature length is
- * zero, and rounding can make it negative, which reverses that end and can
+ * reads the sign of curvature delta. At the end itself the weight is zero,
+ * and rounding can make it negative, which reverses that end and can
  * change sign. The step is at most a quarter of the range.
  */
 static constexpr double S9SignProbeStep = 1e-4;
@@ -768,8 +768,9 @@ static constexpr double S9MaximumCubicError = 1e-5;
  * update of the same knot, only S9OscillationDamping of it is stored, so
  * that a knot does not move back and forth between two angles. An update
  * of half a turn or more is kept complete - a knot angle and the same
- * angle plus pi give the same curves, because S9Lengths changes the sign
- * of the length and the S9 curve then turns the heading back by PI.
+ * angle plus PI give the same curves, because S9ParametersFromAngles
+ * changes the sign of the weight and the S9 curve then turns the heading
+ * back by PI.
  *
  * @param previousUpdate Update of the knot in the previous sweep, zero
  * before the first one. It receives the update that is applied.

@@ -5,19 +5,19 @@
 
 /*
  * The corner law has closed form integrals, thus the scalar solver uses
- * exact tangent angle. The unit corner term at the normalized arc length d
+ * exact tangent angle. The unit corner term at the normalized arc length r
  * from its end is
  *
- *     x = r * d
- *     c(d) = Q (p(x) + phi q(x))
+ *     x = λ r
+ *     c(r) = Q (p(x) + φ q(x))
  *     p(x) = 1 / (1 + x)^1.5
- *     q(x) = L x / (1 + x)^3
- *     phi = r / (r + K)
+ *     q(x) = η x / (1 + x)^3
+ *     φ = λ / (λ + λ_c)
  *
- * Scale Q makes the integral over the curve equal to r. Both terms
+ * Scale Q makes the integral over the curve equal to λ. Both terms
  * and their integrals are polynomials in u = 1 / sqrt(1 + x), therefore the
  * angle law needs no quadrature. The term decreases from its end when
- * L phi is at most 1.5.
+ * η φ is at most 1.5.
  */
 
 
@@ -26,7 +26,7 @@
  * scale Q, over an interval of scaled distances -
  *
  *     u1 = 1 / sqrt(1 + x1), u2 = 1 / sqrt(1 + x2)
- *     mean = u1^2 u2^2 (2 / (u1 + u2) + L phi / 2 (x1 u1^2 + x2 u2^2))
+ *     mean = u1^2 u2^2 (2 / (u1 + u2) + η φ / 2 (x1 u1^2 + x2 u2^2))
  *
  * @param nearDistance Scaled distance x1 of the end nearer the corner, at
  * least zero.
@@ -34,21 +34,21 @@
  * @param farDistance Scaled distance x2 of the far end, at least
  * nearDistance.
  *
- * @param rounding Weight phi of the rounding term, from zero through one.
+ * @param rounding Weight φ of the rounding term, from zero through one.
  *
- * @param lift Lift L of the rounding term, at least zero.
+ * @param eta η of the rounding term, at least zero.
  *
  * @return Positive mean.
  */
 static inline double S9UnitCornerMean(const double nearDistance,
     const double farDistance, const double rounding,
-    const double lift) noexcept
+    const double eta) noexcept
 {
     ASSERT(nearDistance >= 0.0);
     ASSERT(farDistance >= nearDistance);
     ASSERT(rounding >= 0.0);
     ASSERT(rounding <= 1.0);
-    ASSERT(lift >= 0.0);
+    ASSERT(eta >= 0.0);
 
     const double nearRoot = 1.0 / sqrt(1.0 + nearDistance);
     const double farRoot = 1.0 / sqrt(1.0 + farDistance);
@@ -57,7 +57,7 @@ static inline double S9UnitCornerMean(const double nearDistance,
     const double farSquare = farRoot * farRoot;
     const double squareProduct = product * product;
     const double poleMean = 2.0 / (nearRoot + farRoot);
-    const double roundingMean = 0.5 * lift * rounding *
+    const double roundingMean = 0.5 * eta * rounding *
         (nearDistance * nearSquare + farDistance * farSquare);
     const double mean = squareProduct * (poleMean + roundingMean);
     ASSERT(mean > 0.0);
@@ -67,23 +67,23 @@ static inline double S9UnitCornerMean(const double nearDistance,
 
 
 /**
- * Returns the scale Q of the unit corner term for one corner rate.
+ * Returns the scale Q of the unit corner term for one corner λ.
  *
- * @param rate Corner rate r, at least zero. Zero gives zero, an end without
+ * @param lambda Corner λ, at least zero. Zero gives zero, an end without
  * a corner.
  *
- * @param lift Lift L of the rounding term, at least zero.
+ * @param eta η of the rounding term, at least zero.
  */
-static inline double S9UnitCornerScale(const double rate,
-    const double lift) noexcept
+static inline double S9UnitCornerScale(const double lambda,
+    const double eta) noexcept
 {
-    ASSERT(rate >= 0.0);
-    ASSERT(lift >= 0.0);
+    ASSERT(lambda >= 0.0);
+    ASSERT(eta >= 0.0);
 
-    const double rounding = S9CornerRounding(rate);
-    const double mean = S9UnitCornerMean(0.0, rate, rounding, lift);
+    const double rounding = S9CornerRounding(lambda);
+    const double mean = S9UnitCornerMean(0.0, lambda, rounding, eta);
 
-    return rate / mean;
+    return lambda / mean;
 }
 
 
@@ -92,31 +92,31 @@ static inline double S9UnitCornerScale(const double rate,
  * that the caller computed once with S9UnitCornerScale, because the
  * scale needs a square root and a division.
  *
- * @param rate Corner rate r, at least zero.
+ * @param lambda Corner λ, at least zero.
  *
- * @param lift Lift L of the rounding term, at least zero.
+ * @param eta η of the rounding term, at least zero.
  *
- * @param scale Value of S9UnitCornerScale for the rate and the lift.
+ * @param scale Value of S9UnitCornerScale for λ and η.
  *
- * @param distance Normalized arc length d from the end of the corner, from
- * zero through one.
+ * @param distance Normalized arc length r from the end of the corner, from
+ * zero to one.
  *
  * @return Turn rate of the term, at least zero.
  */
-static inline double S9UnitCornerValueWithScale(const double rate,
-    const double lift, const double scale, const double distance) noexcept
+static inline double S9UnitCornerValueWithScale(const double lambda,
+    const double eta, const double scale, const double distance) noexcept
 {
-    ASSERT(rate >= 0.0);
-    ASSERT(lift >= 0.0);
+    ASSERT(lambda >= 0.0);
+    ASSERT(eta >= 0.0);
     ASSERT(scale >= 0.0);
     ASSERT(distance >= 0.0);
     ASSERT(distance <= 1.0);
 
-    const double scaled = distance * rate;
-    const double rounding = S9CornerRounding(rate);
+    const double scaled = distance * lambda;
+    const double rounding = S9CornerRounding(lambda);
     const double unitRoot = 1.0 / sqrt(1.0 + scaled);
     const double pole = unitRoot * unitRoot * unitRoot;
-    const double roundingTerm = lift * rounding * scaled * pole * pole;
+    const double roundingTerm = eta * rounding * scaled * pole * pole;
 
     return scale * (pole + roundingTerm);
 }
@@ -126,66 +126,103 @@ static inline double S9UnitCornerValueWithScale(const double rate,
  * Returns the unit corner term at one distance from its end, see
  * S9UnitCornerValueWithScale.
  */
-static inline double S9UnitCornerValue(const double rate,
-    const double lift, const double distance) noexcept
+static inline double S9UnitCornerValue(const double lambda,
+    const double eta, const double distance) noexcept
 {
-    const double scale = S9UnitCornerScale(rate, lift);
+    const double scale = S9UnitCornerScale(lambda, eta);
 
-    return S9UnitCornerValueWithScale(rate, lift, scale, distance);
+    return S9UnitCornerValueWithScale(lambda, eta, scale, distance);
 }
 
 
-static inline double S9UnitCornerTurnFromEndWithScale(const double rate,
-    const double lift, const double scale, const double distance) noexcept
+/**
+ * Returns the derivative of the unit corner term with respect to the
+ * distance from its end. The derivative is
+ *
+ *     c'(r) = Q λ (-1.5 + η φ (1 - 2 x) / (1 + x)^1.5) / (1 + x)^2.5
+ *
+ * At the end the slope is Q λ (η φ - 1.5). It is negative at every
+ * distance when η φ is at most 1.5, and past half a pole distance for
+ * every η.
+ *
+ * @param lambda Corner λ, at least zero.
+ *
+ * @param eta η of the rounding term, at least zero.
+ *
+ * @param distance Normalized arc length r from the end of the corner, from
+ * zero to one.
+ */
+static inline double S9UnitCornerSlope(const double lambda,
+    const double eta, const double distance) noexcept
 {
-    ASSERT(rate >= 0.0);
-    ASSERT(lift >= 0.0);
+    ASSERT(lambda >= 0.0);
+    ASSERT(eta >= 0.0);
+    ASSERT(distance >= 0.0);
+    ASSERT(distance <= 1.0);
+
+    const double scale = S9UnitCornerScale(lambda, eta);
+    const double scaled = distance * lambda;
+    const double rounding = S9CornerRounding(lambda);
+    const double unitRoot = 1.0 / sqrt(1.0 + scaled);
+    const double unitSquare = unitRoot * unitRoot;
+    const double unitCube = unitSquare * unitRoot;
+    const double unitFifth = unitSquare * unitCube;
+    const double roundingSlope = eta * rounding * unitCube *
+        (1.0 - 2.0 * scaled);
+
+    return scale * lambda * unitFifth * (-1.5 + roundingSlope);
+}
+
+
+static inline double S9UnitCornerTurnFromEndWithScale(const double lambda,
+    const double eta, const double scale, const double distance) noexcept
+{
+    ASSERT(lambda >= 0.0);
+    ASSERT(eta >= 0.0);
     ASSERT(scale >= 0.0);
     ASSERT(distance >= 0.0);
     ASSERT(distance <= 1.0);
 
-    const double scaledDistance = distance * rate;
-    const double rounding = S9CornerRounding(rate);
-    const double mean = S9UnitCornerMean(0.0, scaledDistance, rounding,
-        lift);
+    const double scaledDistance = distance * lambda;
+    const double rounding = S9CornerRounding(lambda);
+    const double mean = S9UnitCornerMean(0.0, scaledDistance, rounding, eta);
 
     return scale * distance * mean;
 }
 
 
-static inline double S9UnitCornerTurnFromEnd(const double rate,
-    const double lift, const double distance) noexcept
+static inline double S9UnitCornerTurnFromEnd(const double lambda,
+    const double eta, const double distance) noexcept
 {
-    const double scale = S9UnitCornerScale(rate, lift);
+    const double scale = S9UnitCornerScale(lambda, eta);
 
-    return S9UnitCornerTurnFromEndWithScale(rate, lift, scale, distance);
+    return S9UnitCornerTurnFromEndWithScale(lambda, eta, scale, distance);
 }
 
 
-static inline double S9UnitCornerTurnToFarEndWithScale(const double rate,
-    const double lift, const double scale, const double width) noexcept
+static inline double S9UnitCornerTurnToFarEndWithScale(const double lambda,
+    const double eta, const double scale, const double width) noexcept
 {
-    ASSERT(rate >= 0.0);
-    ASSERT(lift >= 0.0);
+    ASSERT(lambda >= 0.0);
+    ASSERT(eta >= 0.0);
     ASSERT(scale >= 0.0);
     ASSERT(width >= 0.0);
     ASSERT(width <= 1.0);
 
-    const double nearDistance = (1.0 - width) * rate;
-    const double rounding = S9CornerRounding(rate);
-    const double mean = S9UnitCornerMean(nearDistance, rate, rounding,
-        lift);
+    const double nearDistance = (1.0 - width) * lambda;
+    const double rounding = S9CornerRounding(lambda);
+    const double mean = S9UnitCornerMean(nearDistance, lambda, rounding, eta);
 
     return scale * width * mean;
 }
 
 
-static inline double S9UnitCornerTurnToFarEnd(const double rate,
-    const double lift, const double width) noexcept
+static inline double S9UnitCornerTurnToFarEnd(const double lambda,
+    const double eta, const double width) noexcept
 {
-    const double scale = S9UnitCornerScale(rate, lift);
+    const double scale = S9UnitCornerScale(lambda, eta);
 
-    return S9UnitCornerTurnToFarEndWithScale(rate, lift, scale, width);
+    return S9UnitCornerTurnToFarEndWithScale(lambda, eta, scale, width);
 }
 
 
@@ -194,7 +231,7 @@ double S9Curve::StartBasis(const double t) const noexcept
     ASSERT(t >= 0.0);
     ASSERT(t <= 1.0);
 
-    const double corner = S9UnitCornerValue(StartR, StartL, t);
+    const double corner = S9UnitCornerValue(StartLambda, StartEta, t);
 
     return (1.0 - t) + corner;
 }
@@ -205,7 +242,7 @@ double S9Curve::EndBasis(const double t) const noexcept
     ASSERT(t >= 0.0);
     ASSERT(t <= 1.0);
 
-    const double corner = S9UnitCornerValue(EndR, EndL, 1.0 - t);
+    const double corner = S9UnitCornerValue(EndLambda, EndEta, 1.0 - t);
 
     return t + corner;
 }
@@ -216,7 +253,7 @@ double S9Curve::StartBasisIntegral(const double t) const noexcept
     ASSERT(t >= 0.0);
     ASSERT(t <= 1.0);
 
-    const double corner = S9UnitCornerTurnFromEnd(StartR, StartL,
+    const double corner = S9UnitCornerTurnFromEnd(StartLambda, StartEta,
         t);
 
     return t - 0.5 * t * t + corner;
@@ -228,7 +265,7 @@ double S9Curve::EndBasisIntegral(const double t) const noexcept
     ASSERT(t >= 0.0);
     ASSERT(t <= 1.0);
 
-    const double corner = S9UnitCornerTurnToFarEnd(EndR, EndL, t);
+    const double corner = S9UnitCornerTurnToFarEnd(EndLambda, EndEta, t);
 
     return 0.5 * t * t + corner;
 }
@@ -243,6 +280,22 @@ double S9Curve::TurnRate(const double t) const noexcept
 }
 
 
+double S9Curve::TurnRateSlope(const double t) const noexcept
+{
+    ASSERT(t >= 0.0);
+    ASSERT(t <= 1.0);
+
+    const double startCorner = S9UnitCornerSlope(StartLambda, StartEta,
+        t);
+    const double endCorner = S9UnitCornerSlope(EndLambda, EndEta,
+        1.0 - t);
+    const double startSlope = -1.0 + startCorner;
+    const double endSlope = 1.0 - endCorner;
+
+    return StartLine * startSlope + EndLine * endSlope;
+}
+
+
 double S9Curve::TurnFromStart(const double t) const noexcept
 {
     const double startIntegral = StartBasisIntegral(t);
@@ -253,11 +306,11 @@ double S9Curve::TurnFromStart(const double t) const noexcept
 
 
 /*
- * Smallest magnitude of a curvature length. A smaller magnitude is raised
- * to it, and the corner is then numerically infinite with a pole distance
- * of about 1e-8.
+ * Smallest magnitude of a weight. A smaller magnitude is raised to it, and
+ * the corner is then numerically infinite with a pole distance of about
+ * 1e-8.
  */
-static constexpr double S9SmallestLength = 1e-8;
+static constexpr double S9SmallestWeight = 1e-8;
 
 
 /*
@@ -296,9 +349,9 @@ static constexpr U32 S9GreatestCubicCount = 2048U;
 static constexpr U32 S9GreatestPanelCount = 60000U;
 
 
-STATIC_ASSERT(S9SmallestLength > 0.0);
-STATIC_ASSERT(S9SmallestLength < 1.0);
-STATIC_ASSERT(S9SmallestLength * 134217728.0 > 0.5);
+STATIC_ASSERT(S9SmallestWeight > 0.0);
+STATIC_ASSERT(S9SmallestWeight < 1.0);
+STATIC_ASSERT(S9SmallestWeight * 134217728.0 > 0.5);
 STATIC_ASSERT(S9ScanSampleCount > 2U);
 STATIC_ASSERT(S9ScanSampleCount % 2U == 0U);
 STATIC_ASSERT(S9ScanRestartInterval > 0U);
@@ -325,14 +378,15 @@ static double S9ReduceAngle(const double angle) noexcept
 }
 
 
-static double S9Heading(const double forwardAngle, const double length) noexcept
+static double S9Heading(const double forwardAngle,
+    const double weight) noexcept
 {
     ASSERT(isfinite(forwardAngle));
-    ASSERT(isfinite(length));
+    ASSERT(isfinite(weight));
 
     double heading = forwardAngle;
 
-    if (length < 0.0) {
+    if (weight < 0.0) {
         heading += Pi;
     }
 
@@ -340,23 +394,23 @@ static double S9Heading(const double forwardAngle, const double length) noexcept
 }
 
 
-static double S9CornerRate(const double length) noexcept
+static double S9WeightLambda(const double weight) noexcept
 {
-    ASSERT(isfinite(length));
+    ASSERT(isfinite(weight));
 
-    const double magnitude = Abs(length);
-    const double limited = Clamp(magnitude, S9SmallestLength, 1.0);
-    const double rate = (1.0 - limited) / limited;
+    const double magnitude = Abs(weight);
+    const double limited = Clamp(magnitude, S9SmallestWeight, 1.0);
+    const double lambda = (1.0 - limited) / limited;
 
-    ASSERT(rate >= 0.0);
-    ASSERT(isfinite(rate));
+    ASSERT(lambda >= 0.0);
+    ASSERT(isfinite(lambda));
 
-    return rate;
+    return lambda;
 }
 
 
 /**
- * Sets the angles, the corner rates, the rounding lifts and the net turn
+ * Sets the angles, the corner λ, the rounding η and the net turn
  * of a shape from its parameters.
  */
 static void S9PrepareShape(const S9CurveParameters &parameters,
@@ -364,21 +418,21 @@ static void S9PrepareShape(const S9CurveParameters &parameters,
 {
     ASSERT(isfinite(parameters.Alpha));
     ASSERT(isfinite(parameters.Beta));
-    ASSERT(parameters.StartLength >= -1.0);
-    ASSERT(parameters.StartLength <= 1.0);
-    ASSERT(parameters.EndLength >= -1.0);
-    ASSERT(parameters.EndLength <= 1.0);
-    ASSERT(isfinite(parameters.StartRoundingLift));
-    ASSERT(isfinite(parameters.EndRoundingLift));
-    ASSERT(parameters.StartRoundingLift >= 0.0);
-    ASSERT(parameters.EndRoundingLift >= 0.0);
+    ASSERT(parameters.StartWeight >= -1.0);
+    ASSERT(parameters.StartWeight <= 1.0);
+    ASSERT(parameters.EndWeight >= -1.0);
+    ASSERT(parameters.EndWeight <= 1.0);
+    ASSERT(isfinite(parameters.StartEta));
+    ASSERT(isfinite(parameters.EndEta));
+    ASSERT(parameters.StartEta >= 0.0);
+    ASSERT(parameters.EndEta >= 0.0);
 
-    shape.StartAngle = S9Heading(parameters.Alpha, parameters.StartLength);
-    shape.EndAngle = S9Heading(-parameters.Beta, parameters.EndLength);
-    shape.StartR = S9CornerRate(parameters.StartLength);
-    shape.EndR = S9CornerRate(parameters.EndLength);
-    shape.StartL = parameters.StartRoundingLift;
-    shape.EndL = parameters.EndRoundingLift;
+    shape.StartAngle = S9Heading(parameters.Alpha, parameters.StartWeight);
+    shape.EndAngle = S9Heading(-parameters.Beta, parameters.EndWeight);
+    shape.StartLambda = S9WeightLambda(parameters.StartWeight);
+    shape.EndLambda = S9WeightLambda(parameters.EndWeight);
+    shape.StartEta = parameters.StartEta;
+    shape.EndEta = parameters.EndEta;
     shape.Turn = S9ReduceAngle(shape.EndAngle - shape.StartAngle);
 }
 
@@ -386,7 +440,8 @@ static void S9PrepareShape(const S9CurveParameters &parameters,
 /**
  * Returns raw net turn of a shape.
  */
-static inline constexpr double S9RawTurn(const S9Curve &shape) noexcept {
+static inline constexpr double S9RawTurn(const S9Curve &shape) noexcept
+{
     return shape.EndAngle - shape.StartAngle;
 }
 
@@ -396,8 +451,8 @@ static void S9SetLines(const double share,
 {
     ASSERT(isfinite(share));
     ASSERT(isfinite(shape.Turn));
-    ASSERT(shape.StartR >= 0.0);
-    ASSERT(shape.EndR >= 0.0);
+    ASSERT(shape.StartLambda >= 0.0);
+    ASSERT(shape.EndLambda >= 0.0);
 
     const double startBasisTurn = shape.StartBasisTurn();
     const double endBasisTurn = shape.EndBasisTurn();
@@ -455,24 +510,22 @@ inline S9Grid::S9Grid() noexcept {
 }
 
 
-static inline constexpr void S9AddGradedEdges(const double cornerRate,
+static inline constexpr void S9AddGradedEdges(const double lambda,
     const bool fromEnd, double (&edges)[S9GreatestEdgeCount],
     U32 &count) noexcept
 {
-    ASSERT(cornerRate >= 0.0);
+    ASSERT(lambda >= 0.0);
     ASSERT(count <= S9GreatestEdgeCount);
 
-    if (cornerRate <= 0.0) {
+    if (lambda <= 0.0) {
         return;
     }
 
-    double distance = 0.125 / cornerRate;
-
+    double distance = 0.125 / lambda;
     U32 added = 0U;
 
     while (distance < 0.5 and added < S9GreatestGradedEdgeCount and
         count < S9GreatestEdgeCount) {
-
         double edge = distance;
 
         if (fromEnd) {
@@ -480,7 +533,6 @@ static inline constexpr void S9AddGradedEdges(const double cornerRate,
         }
 
         edges[count] = edge;
-
         count++;
         added++;
         distance *= 2.0;
@@ -495,13 +547,12 @@ static void S9BuildGrid(const S9Curve &shape,
     ASSERT(basePanelCount >= 1U);
     ASSERT(basePanelCount <= S9BasePanelCount);
     ASSERT(nodesPerPanel == 8U or nodesPerPanel == 16U);
-    ASSERT(shape.StartR >= 0.0);
-    ASSERT(shape.EndR >= 0.0);
-    ASSERT(shape.StartL >= 0.0);
-    ASSERT(shape.EndL >= 0.0);
+    ASSERT(shape.StartLambda >= 0.0);
+    ASSERT(shape.EndLambda >= 0.0);
+    ASSERT(shape.StartEta >= 0.0);
+    ASSERT(shape.EndEta >= 0.0);
 
     double edges[S9GreatestEdgeCount];
-
     U32 edgeCount = 0U;
 
     for (U32 index = 0U; index <= basePanelCount; index++) {
@@ -509,9 +560,8 @@ static void S9BuildGrid(const S9Curve &shape,
         edgeCount++;
     }
 
-    S9AddGradedEdges(shape.StartR, false, edges, edgeCount);
-
-    S9AddGradedEdges(shape.EndR, true, edges, edgeCount);
+    S9AddGradedEdges(shape.StartLambda, false, edges, edgeCount);
+    S9AddGradedEdges(shape.EndLambda, true, edges, edgeCount);
 
     // Insertion sort. The list has at most S9GreatestEdgeCount edges.
     for (U32 index = 1U; index < edgeCount; index++) {
@@ -520,7 +570,6 @@ static void S9BuildGrid(const S9Curve &shape,
 
         while (position > 0U and edges[position - 1U] > edge) {
             edges[position] = edges[position - 1U];
-
             position--;
         }
 
@@ -536,16 +585,14 @@ static void S9BuildGrid(const S9Curve &shape,
     }
 
     const S9Curve local = shape;
-
-    const double startRate = local.StartR;
-    const double endRate = local.EndR;
-    const double startLift = local.StartL;
-    const double endLift = local.EndL;
-    const double startScale = S9UnitCornerScale(startRate, startLift);
-    const double endScale = S9UnitCornerScale(endRate, endLift);
+    const double startLambda = local.StartLambda;
+    const double endLambda = local.EndLambda;
+    const double startEta = local.StartEta;
+    const double endEta = local.EndEta;
+    const double startScale = S9UnitCornerScale(startLambda, startEta);
+    const double endScale = S9UnitCornerScale(endLambda, endEta);
     const double startBasisTurn = local.StartBasisTurn();
     const double endBasisTurn = local.EndBasisTurn();
-
     U32 count = 0U;
 
     for (U32 index = 1U; index < edgeCount; index++) {
@@ -565,9 +612,9 @@ static void S9BuildGrid(const S9Curve &shape,
 
             const double t = begin + width * nodeX[node];
             const double startCorner = S9UnitCornerTurnFromEndWithScale(
-                startRate, startLift, startScale, t);
+                startLambda, startEta, startScale, t);
             const double endCorner = S9UnitCornerTurnToFarEndWithScale(
-                endRate, endLift, endScale, t);
+                endLambda, endEta, endScale, t);
             const double startIntegral = t - 0.5 * t * t + startCorner;
             const double endIntegral = 0.5 * t * t + endCorner;
 
@@ -576,7 +623,6 @@ static void S9BuildGrid(const S9Curve &shape,
             grid.EndIntegral[slot] = endIntegral;
             grid.ShareRate[slot] = startIntegral / startBasisTurn -
                 endIntegral / endBasisTurn;
-
             count++;
         }
     }
@@ -607,13 +653,12 @@ static void S9BuildGrid(const S9Curve &shape,
 
             const double t = begin + width * nodeX[node];
             const double startCorner = S9UnitCornerValueWithScale(
-                startRate, startLift, startScale, t);
-            const double endCorner = S9UnitCornerValueWithScale(endRate,
-                endLift, endScale, 1.0 - t);
+                startLambda, startEta, startScale, t);
+            const double endCorner = S9UnitCornerValueWithScale(endLambda,
+                endEta, endScale, 1.0 - t);
 
             grid.StartRate[slot] = (1.0 - t) + startCorner;
             grid.EndRate[slot] = t + endCorner;
-
             slot++;
         }
     }
@@ -901,9 +946,7 @@ static void S9RefineBracket(const S9Grid &fine,
     }
 
     double root = 0.0;
-
     FloatPoint endPoint;
-
     const bool refined = S9TryRefineRoot(fine, shape, low, high,
         lowPoint.Y, highPoint.Y, root, endPoint);
 
@@ -1231,17 +1274,17 @@ static bool S9TryPredictedRoot(const S9Grid &fine,
 }
 
 
-bool S9Curve::TrySolveWithLengths(
+bool S9Curve::TrySolveWithWeights(
     const S9CurveParameters &parameters) noexcept
 {
     ASSERT(isfinite(parameters.Alpha));
     ASSERT(isfinite(parameters.Beta));
-    ASSERT(parameters.StartLength >= -1.0);
-    ASSERT(parameters.StartLength <= 1.0);
-    ASSERT(parameters.EndLength >= -1.0);
-    ASSERT(parameters.EndLength <= 1.0);
-    ASSERT(parameters.StartRoundingLift >= 0.0);
-    ASSERT(parameters.EndRoundingLift >= 0.0);
+    ASSERT(parameters.StartWeight >= -1.0);
+    ASSERT(parameters.StartWeight <= 1.0);
+    ASSERT(parameters.EndWeight >= -1.0);
+    ASSERT(parameters.EndWeight <= 1.0);
+    ASSERT(parameters.StartEta >= 0.0);
+    ASSERT(parameters.EndEta >= 0.0);
 
     S9Curve candidate;
 
@@ -1254,7 +1297,6 @@ bool S9Curve::TrySolveWithLengths(
     S9BuildGrid(candidate, S9BasePanelCount, 16U, true, fine);
 
     static constexpr double fullTurn = 2.0 * Pi;
-
     const double principalTurn = candidate.Turn;
     const double rawTurn = S9RawTurn(candidate);
 
@@ -1289,7 +1331,6 @@ bool S9Curve::TrySolveWithLengths(
     };
 
     S9RootChoice choice;
-
     double bestTurn = rawTurn;
 
     for (U32 index = 0U; index < 4U and !choice.Found; index++) {
@@ -1301,9 +1342,7 @@ bool S9Curve::TrySolveWithLengths(
         }
 
         candidate.Turn = turn;
-
         S9ScanShare(coarse, fine, candidate, choice);
-
         bestTurn = turn;
     }
 
@@ -1320,17 +1359,17 @@ bool S9Curve::TrySolveWithLengths(
 }
 
 
-bool S9Curve::TrySolveWithLengthsNear(const S9CurveParameters &parameters,
+bool S9Curve::TrySolveWithWeightsNear(const S9CurveParameters &parameters,
     const S9Curve &nearby) noexcept
 {
     ASSERT(isfinite(parameters.Alpha));
     ASSERT(isfinite(parameters.Beta));
-    ASSERT(parameters.StartLength >= -1.0);
-    ASSERT(parameters.StartLength <= 1.0);
-    ASSERT(parameters.EndLength >= -1.0);
-    ASSERT(parameters.EndLength <= 1.0);
-    ASSERT(parameters.StartRoundingLift >= 0.0);
-    ASSERT(parameters.EndRoundingLift >= 0.0);
+    ASSERT(parameters.StartWeight >= -1.0);
+    ASSERT(parameters.StartWeight <= 1.0);
+    ASSERT(parameters.EndWeight >= -1.0);
+    ASSERT(parameters.EndWeight <= 1.0);
+    ASSERT(parameters.StartEta >= 0.0);
+    ASSERT(parameters.EndEta >= 0.0);
     ASSERT(nearby.Length > 0.0);
 
     S9Curve candidate;
@@ -1410,24 +1449,15 @@ bool S9Curve::TrySolveWithLengthsNear(const S9CurveParameters &parameters,
         return true;
     }
 
-    return TrySolveWithLengths(parameters);
+    return TrySolveWithWeights(parameters);
 }
-
-
-/*
- * Measurements that one conversion may still make, each one quadrature
- * rule over a range of the curve.
- */
-struct S9RemainingMeasurements final {
-    U32 Count = 0U;
-};
 
 
 struct S9Approximation final {
     const S9Curve *Shape = nullptr;
     CurveArray<CubicCurve> *Curves = nullptr;
-    S9RemainingMeasurements *Measurements = nullptr;
     double MaximumError = 0.0;
+    U32 RemainingMeasurements = 0U;
     U32 RemainingCubics = 0U;
     bool Failed = false;
 };
@@ -1481,7 +1511,6 @@ static void S9ApproximateRange(S9Approximation &approximation,
     const FloatPoint startPoint, FloatPoint &endPoint) noexcept
 {
     ASSERT(approximation.Shape != nullptr);
-    ASSERT(approximation.Measurements != nullptr);
     ASSERT(begin >= 0.0);
     ASSERT(end > begin);
     ASSERT(end <= 1.0 + DBL_EPSILON);
@@ -1492,9 +1521,21 @@ static void S9ApproximateRange(S9Approximation &approximation,
     const double middle = begin + 0.5 * width;
     const double quarterWidth = 0.25 * width;
     const double startAngle = shape.TangentAngle(begin);
+
     FloatPoint piecePoint = startPoint;
-    FloatPoint samplePoints[3] = {startPoint, startPoint, startPoint};
-    double sampleAngles[3] = {startAngle, startAngle, startAngle};
+
+    FloatPoint samplePoints[3] = {
+        startPoint,
+        startPoint,
+        startPoint
+    };
+
+    double sampleAngles[3] = {
+        startAngle,
+        startAngle,
+        startAngle
+    };
+
     double variation = 0.0;
     double pieceAngle = startAngle;
 
@@ -1576,10 +1617,10 @@ static void S9ApproximateRange(S9Approximation &approximation,
 
     static constexpr U32 spent = 5U;
 
-    if (approximation.Measurements->Count > spent) {
-        approximation.Measurements->Count -= spent;
+    if (approximation.RemainingMeasurements > spent) {
+        approximation.RemainingMeasurements -= spent;
     } else {
-        approximation.Measurements->Count = 0U;
+        approximation.RemainingMeasurements = 0U;
         approximation.Failed = true;
     }
 
@@ -1620,16 +1661,12 @@ static bool S9TryApproximateSolvedShape(const S9Curve &solved,
     ASSERT(solved.Length > 0.0);
 
     const FloatPoint startPoint;
-    S9RemainingMeasurements measurements;
-
-    measurements.Count = S9GreatestPanelCount;
-
     S9Approximation approximation;
 
     approximation.Shape = &solved;
     approximation.Curves = &curves;
-    approximation.Measurements = &measurements;
     approximation.MaximumError = maximumError;
+    approximation.RemainingMeasurements = S9GreatestPanelCount;
     approximation.RemainingCubics = S9GreatestCubicCount;
 
     curves.Restart(startPoint);
@@ -1682,7 +1719,6 @@ bool S9Curve::TryApproximateWithCubics(const double maximumError,
     const bool isSolved = Length > 0.0;
 
     ASSERT(isSolved);
-
     if (!isSolved) {
         curves.Erase();
         curves.Restart(startPoint);

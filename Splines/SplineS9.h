@@ -2,7 +2,6 @@
 #pragma once
 
 
-#include "Base.h"
 #include "CurveArray.h"
 #include "FloatPoint.h"
 
