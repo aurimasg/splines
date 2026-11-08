@@ -227,7 +227,13 @@ static inline double S9WeightEta(const double weight) noexcept
     ASSERT(isfinite(weight));
     ASSERT(fabs(weight) <= 1.0);
 
-    return 2.4 * pow(cos((M_PI / 2.0) * weight), 6.0);
+    // return 2.4 * pow(cos((M_PI / 2.0) * weight), 6.0);
+
+    const double ww = weight * weight;
+    const double t = M_PI * sqrt(5.0) * weight / sqrt(1.0 + 4.0 * ww);
+    const double s = sin(t);
+
+    return s * s + 1.5;
 }
 
 
