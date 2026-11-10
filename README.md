@@ -7,6 +7,6 @@ This repository contains a few interpolating splines, including S9, my own G2-co
 * [CubicC2](Splines/SplineCubicC2.h). C2-continuous cubic spline.
 * [CubicG2](Splines/SplineCubicG2.h). G2-continuous cubic spline based on [this paper](https://spline.technology/paper1.pdf).
 * [Hobby spline](Splines/SplineHobby.h).
-* [Adobe κ-Curves](Splines/SplineKappa.h). G2-continuous spline used in Adobe Illustrator.
+* [Adobe κ-Curves](Splines/SplineKappa.h). G2-continuous spline allegedly used in Adobe Illustrator as claimed by [the paper](https://zhipeiyan.github.io/projects/kCurves/kCurves.pdf). In reality Illustrator implements either heavily modified or a different spline.
 * [S9](Splines/SplineS9.h). G2-continuous spline based on non-polynomial curves with low curvature variation.
 
