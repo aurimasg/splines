@@ -1,7 +1,9 @@
 # Splines
 A collection of interpolating splines.
 # Intro
-Try splines implemented here in https://gasiulis.name/interpolating-splines/
+Related article is at https://gasiulis.name/new-spline/
+
+Try splines implemented here at https://gasiulis.name/interpolating-splines/
 
 This repository contains a few interpolating splines, including S9, my own G2-continuous, low curvature variation spline. Each solver has cyclic and acyclic variants and produces either cubic or quadratic Bézier curves. Implemented splines are these -
 * [CubicC2](Splines/SplineCubicC2.h). C2-continuous cubic spline.
